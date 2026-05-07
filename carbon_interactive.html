@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carbon Emission Interactive Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #161616;
+  --surface2: #1e1e1e;
+  --border: #2a2a2a;
+  --green: #00ff88;
+  --green-dim: rgba(0,255,136,0.1);
+  --amber: #ffaa00;
+  --amber-dim: rgba(255,170,0,0.1);
+  --red: #ff4455;
+  --red-dim: rgba(255,68,85,0.1);
+  --blue: #0099ff;
+  --text: #f0f0f0;
+  --muted: #666;
+  --font-display: 'Barlow', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  min-height: 100vh;
+}
+
+/* Scanline effect */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.wrapper { max-width: 1300px; margin: 0 auto; padding: 40px 24px; }
+
+/* Header */
+header { margin-bottom: 40px; }
+.header-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--green);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 1.5s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+h1 {
+  font-size: clamp(32px, 5vw, 64px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+}
+h1 em { color: var(--green); font-style: normal; }
+.subtitle { font-size: 14px; color: var(--muted); font-family: var(--font-mono); margin-top: 8px; }
+
+/* Main layout */
+.layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+
+/* Controls panel */
+.controls {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  position: sticky;
+  top: 20px;
+}
+
+.controls-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--green);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 20px 0 12px;
+}
+.section-label:first-of-type { margin-top: 0; }
+
+.control-group { margin-bottom: 16px; }
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.control-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--green);
+  background: var(--green-dim);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--green);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+
+select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: var(--font-display);
+  outline: none;
+  cursor: pointer;
+}
+select:focus { border-color: var(--green); }
+
+/* Scenario buttons */
+.scenarios { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.scenario-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.scenario-btn:hover { border-color: var(--green); color: var(--green); }
+.scenario-btn.active { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+.scenario-tag { font-size: 10px; opacity: 0.6; }
+
+/* Right panel */
+.right-panel { display: flex; flex-direction: column; gap: 16px; }
+
+/* Result cards */
+.result-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.result-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  transition: background 0.3s;
+}
+.result-card.green::before { background: var(--green); }
+.result-card.amber::before { background: var(--amber); }
+.result-card.red::before { background: var(--red); }
+
+.card-label { font-size: 10px; font-family: var(--font-mono); color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+.card-value { font-size: 32px; font-weight: 900; line-height: 1; margin-bottom: 4px; transition: color 0.3s; }
+.result-card.green .card-value { color: var(--green); }
+.result-card.amber .card-value { color: var(--amber); }
+.result-card.red .card-value { color: var(--red); }
+.card-unit { font-size: 11px; font-family: var(--font-mono); color: var(--muted); }
+
+/* Alert banner */
+.alert {
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.3s;
+}
+.alert.good { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+.alert.warn { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+.alert.bad  { background: var(--red-dim);   border-color: var(--red);   color: var(--red); }
+.alert-icon { font-size: 18px; }
+
+/* Chart cards */
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px;
+}
+.chart-card.full { grid-column: 1 / -1; }
+.chart-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.chart-wrap { position: relative; height: 200px; }
+
+/* Comparison table */
+.compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.compare-table th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.compare-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.compare-table tr:last-child td { border-bottom: none; }
+.compare-table .highlight { color: var(--green); font-family: var(--font-mono); font-weight: 700; }
+.compare-table .dim { color: var(--muted); }
+
+/* Formula display */
+.formula-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.formula-box .var { color: var(--green); }
+.formula-box .op { color: var(--amber); }
+.formula-box .result { color: var(--text); font-weight: 700; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .result-cards { grid-template-columns: 1fr 1fr; }
+  .chart-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<header>
+  <div class="header-tag"><div class="dot"></div> Interactive Simulator — Live Calculation</div>
+  <h1>Carbon <em>Emission</em><br>Calculator</h1>
+  <div class="subtitle">// adjust conditions → see emissions recalculate in real time</div>
+</header>
+
+<div class="layout">
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="controls-title">// input parameters</div>
+
+    <div class="section-label">⬡ Scope 1 — Fuel</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Fuel type
+      </div>
+      <select id="fuelType" onchange="calculate()">
+        <option value="0.2018">Natural gas (0.2018 kg/kWh)</option>
+        <option value="0.2667">Diesel (0.2667 kg/kWh)</option>
+        <option value="0.2143">LPG (0.2143 kg/kWh)</option>
+        <option value="0.3410">Coal (0.3410 kg/kWh)</option>
+        <option value="0.0390">Biomass (0.0390 kg/kWh)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Machine fuel consumption
+        <span class="control-value" id="val_fuel_machine">180 kWh</span>
+      </div>
+      <input type="range" id="fuel_machine" min="0" max="500" value="180" oninput="updateVal('val_fuel_machine', this.value, 'kWh'); calculate()">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Boiler fuel consumption
+        <span class="control-value" id="val_fuel_boiler">95 kWh</span>
+      </div>
+      <input type="range" id="fuel_boiler" min="0" max="300" value="95" oninput="updateVal('val_fuel_boiler', this.value, 'kWh'); calculate()">
+    </div>
+
+    <div class="section-label">⬡ Scope 2 — Electricity</div>
+
+    <div class="control-group">
+      <div class="control-label">Electricity source</div>
+      <select id="elecSource" onchange="calculate()">
+        <option value="0.2330">Grid — EU avg (0.2330 kg/kWh)</option>
+        <option value="0.0410">Solar (0.0410 kg/kWh)</option>
+        <option value="0.0110">Wind (0.0110 kg/kWh)</option>
+        <option value="0.0240">Hydro (0.0240 kg/kWh)</option>
+        <option value="0.1800">Mixed renewable+grid (0.1800 kg/kWh)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Electricity consumed
+        <span class="control-value" id="val_electricity">1240 kWh</span>
+      </div>
+      <input type="range" id="electricity" min="0" max="3000" value="1240" oninput="updateVal('val_electricity', this.value, 'kWh'); calculate()">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Compressed air
+        <span class="control-value" id="val_air">85 kWh</span>
+      </div>
+      <input type="range" id="air" min="0" max="300" value="85" oninput="updateVal('val_air', this.value, 'kWh'); calculate()">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        HVAC
+        <span class="control-value" id="val_hvac">120 kWh</span>
+      </div>
+      <input type="range" id="hvac" min="0" max="300" value="120" oninput="updateVal('val_hvac', this.value, 'kWh'); calculate()">
+    </div>
+
+    <div class="section-label">⬡ Production</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        Units produced
+        <span class="control-value" id="val_units">520 units</span>
+      </div>
+      <input type="range" id="units" min="100" max="2000" value="520" oninput="updateVal('val_units', this.value, 'units'); calculate()">
+    </div>
+
+    <div class="section-label">⬡ Quick Scenarios</div>
+    <div class="scenarios">
+      <button class="scenario-btn" onclick="loadScenario('baseline')">Baseline <span class="scenario-tag">current</span></button>
+      <button class="scenario-btn" onclick="loadScenario('renewable')">Switch to solar <span class="scenario-tag">green</span></button>
+      <button class="scenario-btn" onclick="loadScenario('coal')">Switch to coal <span class="scenario-tag">worst case</span></button>
+      <button class="scenario-btn" onclick="loadScenario('optimized')">Optimized ops <span class="scenario-tag">best case</span></button>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+
+    <!-- Result cards -->
+    <div class="result-cards">
+      <div class="result-card green">
+        <div class="card-label">Total Emissions</div>
+        <div class="card-value" id="total_display">—</div>
+        <div class="card-unit">tCO₂e combined</div>
+      </div>
+      <div class="result-card amber">
+        <div class="card-label">Scope 1 — Direct</div>
+        <div class="card-value" id="scope1_display">—</div>
+        <div class="card-unit">tCO₂e · fuel</div>
+      </div>
+      <div class="result-card red">
+        <div class="card-label">Scope 2 — Indirect</div>
+        <div class="card-value" id="scope2_display">—</div>
+        <div class="card-unit">tCO₂e · electricity</div>
+      </div>
+    </div>
+
+    <!-- Alert -->
+    <div class="alert good" id="alert">
+      <span class="alert-icon">✓</span>
+      <span id="alert_text">Loading...</span>
+    </div>
+
+    <!-- Formula display -->
+    <div class="formula-box" id="formula_display">
+      Calculating...
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-label">// scope breakdown</div>
+        <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-label">// emission intensity</div>
+        <div class="chart-wrap"><canvas id="intensityChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Scenario comparison table -->
+    <div class="chart-card">
+      <div class="chart-label">// scenario comparison</div>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Scope 1</th>
+            <th>Scope 2</th>
+            <th>Total tCO₂e</th>
+            <th>vs Baseline</th>
+          </tr>
+        </thead>
+        <tbody id="scenario_table"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+// ── Emission factors ──────────────────────────────────────
+const SCENARIOS = {
+  baseline:  { fuel_machine:180, fuel_boiler:95, electricity:1240, air:85, hvac:120, units:520, fuelEF:0.2018, elecEF:0.2330, label:"Baseline" },
+  renewable: { fuel_machine:180, fuel_boiler:95, electricity:1240, air:85, hvac:120, units:520, fuelEF:0.2018, elecEF:0.0410, label:"Solar switch" },
+  coal:      { fuel_machine:180, fuel_boiler:95, electricity:1240, air:85, hvac:120, units:520, fuelEF:0.3410, elecEF:0.2330, label:"Coal" },
+  optimized: { fuel_machine:100, fuel_boiler:50, electricity:900,  air:60, hvac:80,  units:600, fuelEF:0.2018, elecEF:0.0410, label:"Optimized" },
+};
+
+// ── Charts ────────────────────────────────────────────────
+const chartDefaults = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{ legend:{display:false}, tooltip:{
+    backgroundColor:'#1e1e1e', borderColor:'#2a2a2a', borderWidth:1,
+    titleColor:'#f0f0f0', bodyColor:'#666', padding:10,
+  }},
+};
+
+const donut = new Chart(document.getElementById('donutChart'), {
+  type:'doughnut',
+  data:{ labels:['Scope 1','Scope 2'], datasets:[{
+    data:[0,0], backgroundColor:['#ffaa00','#ff4455'],
+    borderColor:'#0d0d0d', borderWidth:3, hoverOffset:6,
+  }]},
+  options:{ ...chartDefaults, cutout:'70%',
+    plugins:{ ...chartDefaults.plugins, legend:{display:true, position:'bottom',
+      labels:{color:'#666', padding:14, boxWidth:10, font:{size:11}}
+    }}
+  },
+});
+
+const intensity = new Chart(document.getElementById('intensityChart'), {
+  type:'bar',
+  data:{ labels:['Baseline','Current'], datasets:[{
+    data:[0,0], backgroundColor:['#2a2a2a','#00ff88'], borderRadius:4,
+  }]},
+  options:{ ...chartDefaults,
+    scales:{
+      x:{grid:{color:'#2a2a2a'}},
+      y:{grid:{color:'#2a2a2a'}, ticks:{callback:v=>v.toFixed(4)}},
+    }
+  },
+});
+
+// ── Core calculation ──────────────────────────────────────
+function calculate() {
+  const fuelEF    = parseFloat(document.getElementById('fuelType').value);
+  const elecEF    = parseFloat(document.getElementById('elecSource').value);
+  const fuelM     = parseFloat(document.getElementById('fuel_machine').value);
+  const fuelB     = parseFloat(document.getElementById('fuel_boiler').value);
+  const elec      = parseFloat(document.getElementById('electricity').value);
+  const air       = parseFloat(document.getElementById('air').value);
+  const hvac      = parseFloat(document.getElementById('hvac').value);
+  const units     = parseFloat(document.getElementById('units').value);
+
+  // Scope 1 formula
+  const totalFuel = fuelM + fuelB;
+  const scope1_kg = totalFuel * fuelEF;
+  const scope1_t  = scope1_kg / 1000;
+
+  // Scope 2 formula
+  const totalElec = elec + air + hvac;
+  const scope2_kg = totalElec * elecEF;
+  const scope2_t  = scope2_kg / 1000;
+
+  const total_t   = scope1_t + scope2_t;
+  const intens    = total_t / units;
+  const baseIntens = 0.000392; // baseline intensity
+
+  // Update cards
+  document.getElementById('total_display').textContent  = total_t.toFixed(4);
+  document.getElementById('scope1_display').textContent = scope1_t.toFixed(4);
+  document.getElementById('scope2_display').textContent = scope2_t.toFixed(4);
+
+  // Update formula box
+  document.getElementById('formula_display').innerHTML = `
+<span class="var">Scope 1</span> <span class="op">=</span> (${fuelM} <span class="op">+</span> ${fuelB}) kWh <span class="op">×</span> ${fuelEF} kg/kWh <span class="op">=</span> <span class="result">${scope1_kg.toFixed(2)} kg = ${scope1_t.toFixed(5)} tCO₂e</span>
+<span class="var">Scope 2</span> <span class="op">=</span> (${elec} <span class="op">+</span> ${air} <span class="op">+</span> ${hvac}) kWh <span class="op">×</span> ${elecEF} kg/kWh <span class="op">=</span> <span class="result">${scope2_kg.toFixed(2)} kg = ${scope2_t.toFixed(5)} tCO₂e</span>
+<span class="var">Total</span>   <span class="op">=</span> ${scope1_t.toFixed(5)} <span class="op">+</span> ${scope2_t.toFixed(5)} <span class="op">=</span> <span class="result">${total_t.toFixed(5)} tCO₂e</span>
+<span class="var">Intensity</span> <span class="op">=</span> ${total_t.toFixed(5)} <span class="op">÷</span> ${units} units <span class="op">=</span> <span class="result">${intens.toFixed(7)} tCO₂e/unit</span>`;
+
+  // Alert condition
+  const alert = document.getElementById('alert');
+  const alertText = document.getElementById('alert_text');
+  const pctChange = ((total_t - 0.392) / 0.392 * 100);
+  if (total_t < 0.25) {
+    alert.className = 'alert good';
+    alertText.textContent = `✓ Excellent — emissions ${Math.abs(pctChange).toFixed(1)}% below baseline. Target met.`;
+  } else if (total_t < 0.5) {
+    alert.className = 'alert warn';
+    alertText.textContent = `⚠ Moderate — ${pctChange > 0 ? '+' : ''}${pctChange.toFixed(1)}% vs baseline. Consider switching to renewables.`;
+  } else {
+    alert.className = 'alert bad';
+    alertText.textContent = `✗ High emissions — ${pctChange > 0 ? '+' : ''}${pctChange.toFixed(1)}% vs baseline. Action required.`;
+  }
+
+  // Update donut
+  donut.data.datasets[0].data = [scope1_t, scope2_t];
+  donut.update();
+
+  // Update intensity chart
+  intensity.data.datasets[0].data = [baseIntens, intens];
+  intensity.data.datasets[0].backgroundColor = [
+    '#2a2a2a',
+    intens < baseIntens ? '#00ff88' : intens < baseIntens * 1.2 ? '#ffaa00' : '#ff4455'
+  ];
+  intensity.update();
+
+  // Update scenario table
+  updateTable(scope1_t, scope2_t, total_t);
+}
+
+function updateTable(s1, s2, total) {
+  const scenarios = [
+    { label:'Baseline',     s1: 0.0556, s2: 0.3366, total: 0.3922 },
+    { label:'Solar switch', s1: 0.0556, s2: 0.0593, total: 0.1149 },
+    { label:'Coal',         s1: 0.0940, s2: 0.3366, total: 0.4306 },
+    { label:'Optimized',    s1: 0.0309, s2: 0.2173, total: 0.2482 },
+    { label:'▶ Current',    s1: s1,     s2: s2,     total: total,  current: true },
+  ];
+  const base = 0.3922;
+  const tbody = document.getElementById('scenario_table');
+  tbody.innerHTML = scenarios.map(s => {
+    const diff = ((s.total - base) / base * 100).toFixed(1);
+    const diffColor = s.total < base ? '#00ff88' : s.total > base ? '#ff4455' : '#666';
+    const cls = s.current ? 'highlight' : 'dim';
+    return `<tr>
+      <td class="${s.current ? 'highlight' : ''}">${s.label}</td>
+      <td class="${cls}">${s.s1.toFixed(4)}</td>
+      <td class="${cls}">${s.s2.toFixed(4)}</td>
+      <td class="${cls}">${s.total.toFixed(4)}</td>
+      <td style="color:${diffColor};font-family:var(--font-mono);font-size:12px">${s.total === base ? '—' : (s.total < base ? '▼ ' : '▲ ') + Math.abs(diff) + '%'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function updateVal(id, val, unit) {
+  document.getElementById(id).textContent = val + ' ' + unit;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+}
+
+function loadScenario(name) {
+  const s = SCENARIOS[name];
+  document.getElementById('fuel_machine').value  = s.fuel_machine;
+  document.getElementById('fuel_boiler').value   = s.fuel_boiler;
+  document.getElementById('electricity').value   = s.electricity;
+  document.getElementById('air').value           = s.air;
+  document.getElementById('hvac').value          = s.hvac;
+  document.getElementById('units').value         = s.units;
+  document.getElementById('fuelType').value      = s.fuelEF;
+  document.getElementById('elecSource').value    = s.elecEF;
+  updateVal('val_fuel_machine', s.fuel_machine, 'kWh');
+  updateVal('val_fuel_boiler', s.fuel_boiler, 'kWh');
+  updateVal('val_electricity', s.electricity, 'kWh');
+  updateVal('val_air', s.air, 'kWh');
+  updateVal('val_hvac', s.hvac, 'kWh');
+  updateVal('val_units', s.units, 'units');
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  calculate();
+}
+
+// Init
+calculate();
+</script>
+</body>
+</html>
